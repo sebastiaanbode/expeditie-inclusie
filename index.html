@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Expeditie Inclusie — Inclusief Ontwerp Toolkit</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- Skip to content link for accessibility -->
+  <a href="#main-content" class="skip-link">Ga naar inhoud</a>
+
+  <!-- Sidebar navigation -->
+  <nav class="sidebar" role="navigation" aria-label="Hoofdnavigatie">
+    <div class="sidebar-header">
+      <button class="sidebar-toggle" onclick="toggleSidebar()" aria-label="Toggle menu" aria-expanded="false">
+        <span aria-hidden="true">☰</span>
+      </button>
+      <div class="sidebar-brand">
+        <span class="brand-icon" aria-hidden="true">🗺️</span>
+        <h1 class="brand-title">Expeditie<br>Inclusie</h1>
+      </div>
+    </div>
+
+    <ul class="nav-list">
+      <li>
+        <a href="#home" class="nav-link active" data-view="home" aria-label="Home" aria-current="page">
+          <span class="nav-icon" aria-hidden="true">🏠</span>
+          <span class="nav-label">Home</span>
+        </a>
+      </li>
+      <li>
+        <a href="#overview" class="nav-link" data-view="overview" aria-label="Overzicht van alle canvassen">
+          <span class="nav-icon" aria-hidden="true">📋</span>
+          <span class="nav-label">Overzicht</span>
+        </a>
+      </li>
+      <li class="nav-divider" role="separator"></li>
+    </ul>
+
+    <!-- Canvas links inserted by JS -->
+    <ul class="nav-list nav-canvas-list" id="nav-canvas-list">
+    </ul>
+
+    <div class="sidebar-footer">
+      <div class="progress-indicator" role="status" aria-label="Voortgang">
+        <div class="progress-bar">
+          <div class="progress-fill" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="7"></div>
+        </div>
+        <span class="progress-text">0 van 7 ingevuld</span>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main content area -->
+  <main class="content" id="main-content" role="main" aria-live="polite">
+    <!-- Views are rendered by app.js -->
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
