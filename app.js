@@ -356,6 +356,36 @@ const CANVASES = [
   }
 ];
 
+// ── Supabase ─────────────────────────────────────────────────
+const SUPABASE_URL = 'https://nvadbfjntfsyjjypqyrg.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52YWRiZmpudGZzeWpqeXBxeXJnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI1OTcwODMsImV4cCI6MjA4ODE3MzA4M30.SLBHl3rV5qwWwaWjbeqpw8kAQ79lyp25BN89MB11pL8';
+
+let supabaseClient = null;
+let currentUser = null;
+
+function initSupabase() {
+  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  supabaseClient.auth.onAuthStateChange(async (event, session) => {
+    const previousUser = currentUser;
+    currentUser = session?.user || null;
+    renderAuthSection();
+
+    if (event === 'SIGNED_IN' && currentUser && !previousUser) {
+      await migrateLocalToCloud();
+      await syncCloudToLocal();
+      render();
+      refreshNavChecks();
+      updateProgress();
+      showToast('Ingelogd!');
+    }
+
+    if (event === 'SIGNED_OUT') {
+      showToast('Uitgelogd');
+    }
+  });
+}
+
 // ── State ────────────────────────────────────────────────────
 let currentView = 'home';
 let flippedCards = {};
@@ -363,6 +393,73 @@ let flippedCards = {};
 // ── localStorage helpers ─────────────────────────────────────
 function saveCanvasData(canvasId, data) {
   localStorage.setItem(`expeditie-canvas-${canvasId}`, JSON.stringify(data));
+
+  if (currentUser) {
+    saveCanvasDataToCloud(canvasId, data);
+  }
+}
+
+async function saveCanvasDataToCloud(canvasId, data) {
+  try {
+    const { error } = await supabaseClient
+      .from('canvas_data')
+      .upsert(
+        { user_id: currentUser.id, canvas_id: canvasId, data: data },
+        { onConflict: 'user_id,canvas_id' }
+      );
+    if (error) throw error;
+  } catch (err) {
+    console.error('Cloud save failed:', err);
+    showToast('Opslaan in de cloud mislukt', 'warning');
+  }
+}
+
+async function syncCloudToLocal() {
+  if (!currentUser) return;
+  try {
+    const { data, error } = await supabaseClient
+      .from('canvas_data')
+      .select('canvas_id, data')
+      .eq('user_id', currentUser.id);
+    if (error) throw error;
+    if (data) {
+      data.forEach(row => {
+        localStorage.setItem(`expeditie-canvas-${row.canvas_id}`, JSON.stringify(row.data));
+      });
+    }
+  } catch (err) {
+    console.error('Cloud sync failed:', err);
+  }
+}
+
+async function migrateLocalToCloud() {
+  if (!currentUser) return;
+  try {
+    const { data: existing } = await supabaseClient
+      .from('canvas_data')
+      .select('canvas_id')
+      .eq('user_id', currentUser.id);
+
+    const existingIds = new Set((existing || []).map(r => r.canvas_id));
+    const upserts = [];
+
+    for (let i = 1; i <= 7; i++) {
+      if (existingIds.has(i)) continue;
+      const raw = localStorage.getItem(`expeditie-canvas-${i}`);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Object.keys(parsed).length > 0 && Object.values(parsed).some(v => v && v.toString().trim() !== '' && v !== false)) {
+          upserts.push({ user_id: currentUser.id, canvas_id: i, data: parsed });
+        }
+      }
+    }
+
+    if (upserts.length > 0) {
+      await supabaseClient.from('canvas_data').upsert(upserts, { onConflict: 'user_id,canvas_id' });
+    }
+  } catch (err) {
+    console.error('Migration failed:', err);
+  }
 }
 
 function loadCanvasData(canvasId) {
@@ -736,21 +833,26 @@ function loadFormData(canvasId) {
 }
 
 function showSaveConfirmation(canvasId) {
+  const message = currentUser ? 'Opgeslagen!' : 'Lokaal opgeslagen';
+  showToast(message);
+}
+
+function showToast(message, type = 'success') {
   const existing = document.querySelector('.save-toast');
   if (existing) existing.remove();
 
   const toast = document.createElement('div');
-  toast.className = 'save-toast';
+  toast.className = `save-toast ${type === 'warning' ? 'save-toast-warning' : ''}`;
   toast.setAttribute('role', 'status');
   toast.setAttribute('aria-live', 'polite');
-  toast.textContent = 'Opgeslagen!';
+  toast.textContent = message;
   document.body.appendChild(toast);
 
   requestAnimationFrame(() => toast.classList.add('visible'));
   setTimeout(() => {
     toast.classList.remove('visible');
     setTimeout(() => toast.remove(), 300);
-  }, 2000);
+  }, 3000);
 }
 
 // ── Sidebar Nav Generation ───────────────────────────────────
@@ -817,11 +919,24 @@ function setupKeyboardNav() {
 }
 
 // ── Init ─────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
+function isAuthCallback() {
+  return window.location.hash.includes('access_token');
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  initSupabase();
+
+  if (isAuthCallback()) {
+    const savedView = sessionStorage.getItem('expeditie-pre-auth-view') || 'home';
+    sessionStorage.removeItem('expeditie-pre-auth-view');
+    window.location.hash = savedView;
+  }
+
   generateNav();
   setupKeyboardNav();
   handleHashChange();
   updateProgress();
+  renderAuthSection();
 });
 
 window.addEventListener('hashchange', handleHashChange);
@@ -858,6 +973,117 @@ function openLightbox(src, alt) {
   });
 }
 
+// ── Auth UI ──────────────────────────────────────────────────
+function renderAuthSection() {
+  const section = document.getElementById('auth-section');
+  if (!section) return;
+
+  if (currentUser) {
+    section.innerHTML = `
+      <div class="auth-user-info">
+        <span class="auth-email" title="${currentUser.email}">${currentUser.email}</span>
+        <button class="auth-logout-btn" onclick="handleLogout()">Uitloggen</button>
+      </div>
+    `;
+  } else {
+    section.innerHTML = `
+      <button class="btn btn-ghost auth-login-btn" onclick="openAuthModal()">
+        Inloggen
+      </button>
+    `;
+  }
+}
+
+function openAuthModal() {
+  const existing = document.querySelector('.lightbox');
+  if (existing) existing.remove();
+
+  sessionStorage.setItem('expeditie-pre-auth-view', currentView);
+
+  const lightbox = document.createElement('div');
+  lightbox.className = 'lightbox';
+  lightbox.setAttribute('role', 'dialog');
+  lightbox.setAttribute('aria-label', 'Inloggen');
+  lightbox.innerHTML = `
+    <div class="lightbox-backdrop"></div>
+    <div class="lightbox-content">
+      <div class="auth-modal">
+        <div class="auth-modal-header">
+          <h3>Inloggen</h3>
+          <p>Ontvang een inloglink via e-mail. Geen wachtwoord nodig.</p>
+        </div>
+        <form class="auth-form" id="auth-form">
+          <label class="field-label" for="auth-email">E-mailadres</label>
+          <input type="email" id="auth-email" class="form-input"
+                 placeholder="naam@voorbeeld.nl" required autofocus>
+          <button type="submit" class="btn btn-primary">
+            Verstuur inloglink
+          </button>
+        </form>
+      </div>
+      <button class="lightbox-close" aria-label="Sluiten">&times;</button>
+    </div>
+  `;
+  document.body.appendChild(lightbox);
+
+  requestAnimationFrame(() => lightbox.classList.add('visible'));
+
+  const close = () => {
+    lightbox.classList.remove('visible');
+    setTimeout(() => lightbox.remove(), 300);
+  };
+
+  lightbox.querySelector('.lightbox-backdrop').addEventListener('click', close);
+  lightbox.querySelector('.lightbox-close').addEventListener('click', close);
+  document.addEventListener('keydown', function handler(e) {
+    if (e.key === 'Escape') { close(); document.removeEventListener('keydown', handler); }
+  });
+
+  lightbox.querySelector('#auth-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = lightbox.querySelector('#auth-email').value;
+    const submitBtn = lightbox.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Versturen...';
+
+    try {
+      const { error } = await supabaseClient.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: window.location.origin + window.location.pathname }
+      });
+
+      if (error) throw error;
+
+      lightbox.querySelector('.auth-modal').innerHTML = `
+        <div class="auth-modal-header">
+          <span class="auth-modal-icon">📧</span>
+          <h3>Check je e-mail</h3>
+          <p>We hebben een inloglink gestuurd naar <strong>${email}</strong>. Klik op de link in je e-mail om in te loggen.</p>
+        </div>
+        <button class="btn btn-ghost" onclick="closeAuthModal()" style="width:100%">Sluiten</button>
+      `;
+    } catch (err) {
+      console.error('Magic link failed:', err);
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Verstuur inloglink';
+      showToast('Versturen mislukt. Probeer het opnieuw.', 'warning');
+    }
+  });
+}
+
+function closeAuthModal() {
+  const lightbox = document.querySelector('.lightbox');
+  if (lightbox) {
+    lightbox.classList.remove('visible');
+    setTimeout(() => lightbox.remove(), 300);
+  }
+}
+
+async function handleLogout() {
+  await supabaseClient.auth.signOut();
+  renderAuthSection();
+}
+
 // Expose for inline handlers
 window.navigate = navigate;
 window.flipCard = flipCard;
@@ -865,3 +1091,6 @@ window.saveForm = saveForm;
 window.toggleSidebar = toggleSidebar;
 window.createCoverPlaceholder = createCoverPlaceholder;
 window.openLightbox = openLightbox;
+window.openAuthModal = openAuthModal;
+window.closeAuthModal = closeAuthModal;
+window.handleLogout = handleLogout;

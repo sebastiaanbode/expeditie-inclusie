@@ -935,6 +935,105 @@ body {
   background: var(--color-sage-light);
 }
 
+/* ── Auth Section ────────────────────────────────────────── */
+.auth-section {
+  padding: 12px 0 0;
+  border-top: 1px solid var(--color-card-border);
+  margin-top: 12px;
+}
+
+.auth-section:empty {
+  display: none;
+}
+
+.auth-login-btn {
+  width: 100%;
+  justify-content: center;
+}
+
+.auth-user-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.auth-email {
+  font-size: 13px;
+  color: var(--color-dark-soft);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 140px;
+}
+
+.auth-logout-btn {
+  background: none;
+  border: none;
+  color: var(--color-teal);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--font-main);
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background var(--transition-speed);
+}
+
+.auth-logout-btn:hover {
+  background: var(--color-sage-light);
+}
+
+/* ── Auth Modal ──────────────────────────────────────────── */
+.auth-modal {
+  background: var(--color-white);
+  border-radius: var(--radius);
+  padding: 32px;
+  max-width: 400px;
+  width: 90vw;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.2);
+}
+
+.auth-modal-header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.auth-modal-header h3 {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.auth-modal-header p {
+  font-size: 14px;
+  color: var(--color-dark-soft);
+  line-height: 1.5;
+}
+
+.auth-modal-icon {
+  font-size: 40px;
+  display: block;
+  margin-bottom: 12px;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.auth-form .btn {
+  width: 100%;
+  justify-content: center;
+}
+
+/* ── Toast Warning ───────────────────────────────────────── */
+.save-toast-warning {
+  background: #e67e22;
+}
+
 /* ── Scrollbar ────────────────────────────────────────────── */
 .sidebar::-webkit-scrollbar {
   width: 4px;
