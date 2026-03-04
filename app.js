@@ -920,16 +920,33 @@ function setupKeyboardNav() {
 
 // ── Init ─────────────────────────────────────────────────────
 function isAuthCallback() {
-  return window.location.hash.includes('access_token');
+  const params = new URLSearchParams(window.location.search);
+  return params.has('code') || window.location.hash.includes('access_token');
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
   initSupabase();
 
   if (isAuthCallback()) {
-    const savedView = sessionStorage.getItem('expeditie-pre-auth-view') || 'home';
-    sessionStorage.removeItem('expeditie-pre-auth-view');
-    window.location.hash = savedView;
+    // PKCE flow: exchange the code for a session
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    if (code) {
+      try {
+        await supabaseClient.auth.exchangeCodeForSession(code);
+      } catch (err) {
+        console.error('Auth code exchange failed:', err);
+      }
+      // Clean up the URL
+      const savedView = sessionStorage.getItem('expeditie-pre-auth-view') || 'home';
+      sessionStorage.removeItem('expeditie-pre-auth-view');
+      window.history.replaceState({}, '', window.location.pathname + '#' + savedView);
+    } else {
+      // Hash-based flow (fallback)
+      const savedView = sessionStorage.getItem('expeditie-pre-auth-view') || 'home';
+      sessionStorage.removeItem('expeditie-pre-auth-view');
+      window.location.hash = savedView;
+    }
   }
 
   generateNav();
